@@ -161,7 +161,7 @@ static int nvmpi_encode_frame(AVCodecContext *avctx, AVPacket *pkt,const AVFrame
 		return 0;
 
 
-	ff_alloc_packet2(avctx,pkt,packet.payload_size,packet.payload_size);
+	ff_alloc_packet(avctx,pkt,packet.payload_size);
 
 	memcpy(pkt->data,packet.payload,packet.payload_size);
 	pkt->dts=pkt->pts=packet.pts;
