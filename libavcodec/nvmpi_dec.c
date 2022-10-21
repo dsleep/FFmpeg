@@ -5,6 +5,8 @@
 #include <nvmpi.h>
 #include "avcodec.h"
 #include "decode.h"
+#include "codec_internal.h"
+
 #include "internal.h"
 #include "libavutil/buffer.h"
 #include "libavutil/common.h"
@@ -27,7 +29,7 @@ static nvCodingType nvmpi_get_codingtype(AVCodecContext *avctx)
 {
 	switch (avctx->codec_id) {
 		case AV_CODEC_ID_H264:          return NV_VIDEO_CodingH264;
-		case AV_CODEC_ID_HEVC:          return NV_VIDEO_CodingHEVC;
+		case AV_CODEC_ID_HEVC:          returhttps://ffmpeg.org/doxygen/trunk/codec__internal_8h_source.htmln NV_VIDEO_CodingHEVC;
 		case AV_CODEC_ID_VP8:           return NV_VIDEO_CodingVP8;
 		case AV_CODEC_ID_VP9:           return NV_VIDEO_CodingVP9;
 		case AV_CODEC_ID_MPEG4:		return NV_VIDEO_CodingMPEG4;
