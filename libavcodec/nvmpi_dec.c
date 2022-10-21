@@ -144,20 +144,20 @@ static int nvmpi_decode(AVCodecContext *avctx,void *data,int *got_frame, AVPacke
 
 #define NVMPI_DEC(NAME, ID, BSFS) \
 	NVMPI_DEC_CLASS(NAME) \
-	AVCodec ff_##NAME##_nvmpi_decoder = { \
-		.name           = #NAME "_nvmpi", \
-		.long_name      = NULL_IF_CONFIG_SMALL(#NAME " (nvmpi)"), \
-		.type           = AVMEDIA_TYPE_VIDEO, \
-		.id             = ID, \
+	const FFCodec ff_##NAME##_nvmpi_decoder = { \
+		.p.name           = #NAME "_nvmpi", \
+		 CODEC_LONG_NAME(#NAME " (nvmpi)"), \
+		.p.type           = AVMEDIA_TYPE_VIDEO, \
+		.p.id             = ID, \
 		.priv_data_size = sizeof(nvmpiDecodeContext), \
 		.init           = nvmpi_init_decoder, \
-		.close          = nvmpi_close, \
-		.decode         = nvmpi_decode, \
-		.priv_class     = &nvmpi_##NAME##_dec_class, \
-		.capabilities   = AV_CODEC_CAP_DELAY | AV_CODEC_CAP_AVOID_PROBING | AV_CODEC_CAP_HARDWARE, \
-		.pix_fmts	=(const enum AVPixelFormat[]){AV_PIX_FMT_YUV420P,AV_PIX_FMT_NV12,AV_PIX_FMT_NONE},\
+		.close          = nvmpi_close, \		
+		FF_CODEC_DECODE_CB(nvmpi_decode), \
+		.p.priv_class     = &nvmpi_##NAME##_dec_class, \
+		.p.capabilities   = AV_CODEC_CAP_DELAY | AV_CODEC_CAP_AVOID_PROBING | AV_CODEC_CAP_HARDWARE, \
+		.p.pix_fmts	=(const enum AVPixelFormat[]){AV_PIX_FMT_YUV420P,AV_PIX_FMT_NV12,AV_PIX_FMT_NONE},\
 		.bsfs           = BSFS, \
-		.wrapper_name   = "nvmpi", \
+		.p.wrapper_name   = "nvmpi", \
 	};
 
 
