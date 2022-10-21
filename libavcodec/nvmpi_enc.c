@@ -183,7 +183,7 @@ static av_cold int nvmpi_encode_close(AVCodecContext *avctx){
 	return 0;
 }
 
-static const AVCodecDefault defaults[] = {
+static const FFCodecDefault defaults[] = {
 	{ "b", "2M" },
 	{ "qmin", "-1" },
 	{ "qmax", "-1" },
