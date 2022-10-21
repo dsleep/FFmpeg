@@ -261,7 +261,7 @@ static const AVOption options[] = {
 		.priv_data_size = sizeof(nvmpiEncodeContext), \
 		.p.priv_class     = &nvmpi_ ## NAME ##_enc_class, \
 		.init           = nvmpi_encode_init, \		
-		FF_CODEC_ENCODE_CB(X264_frame), \
+		FF_CODEC_ENCODE_CB(nvmpi_encode_frame), \
 		.close          = nvmpi_encode_close, \
 		.p.pix_fmts       = (const enum AVPixelFormat[]) { AV_PIX_FMT_YUV420P, AV_PIX_FMT_NONE },\
 		.p.capabilities   = AV_CODEC_CAP_HARDWARE | AV_CODEC_CAP_DELAY, \
