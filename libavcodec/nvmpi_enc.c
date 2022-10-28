@@ -127,7 +127,7 @@ static av_cold int nvmpi_encode_init(AVCodecContext *avctx){
 	return 0;
 }
 
-
+//DS support a null frame push
 static int nvmpi_encode_frame(AVCodecContext *avctx, AVPacket *pkt,const AVFrame *frame, int *got_packet){
 
 	nvmpiEncodeContext * nvmpi_context = avctx->priv_data;
@@ -150,17 +150,14 @@ static int nvmpi_encode_frame(AVCodecContext *avctx, AVPacket *pkt,const AVFrame
 		_nvframe.linesize[2]=frame->linesize[2];
 
 		_nvframe.timestamp=frame->pts;
-
-		res=nvmpi_encoder_put_frame(nvmpi_context->ctx,&_nvframe);
-
-		if(res<0)
-			return res;
 	}
 
+	res=nvmpi_encoder_put_frame(nvmpi_context->ctx,&_nvframe);
+	if(res<0)
+		return res;
 
 	if(nvmpi_encoder_get_packet(nvmpi_context->ctx,&packet)<0)
 		return 0;
-
 
 	ff_alloc_packet(avctx,pkt,packet.payload_size);
 
