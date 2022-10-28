@@ -173,9 +173,18 @@ static int nvmpi_encode_frame(AVCodecContext *avctx, AVPacket *pkt,const AVFrame
 	return 0;
 }
 
-static av_cold int nvmpi_encode_close(AVCodecContext *avctx){
 
+static av_cold int nvmpi_encode_close(AVCodecContext *avctx){
+	
 	nvmpiEncodeContext *nvmpi_context = avctx->priv_data;
+
+	//DS - make sure we are closing it down
+	if(!avctx->internal->draining)
+	{
+		nvFrame _nvframe={0};
+		nvmpi_encoder_put_frame(nvmpi_context->ctx,&_nvframe);		
+	}
+
 	nvmpi_encoder_close(nvmpi_context->ctx);
 
 	return 0;
