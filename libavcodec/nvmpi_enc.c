@@ -11,18 +11,26 @@
 #include "libavutil/log.h"
 #include "libavutil/opt.h"
 
-
+int ff_nvmpi_receive_packet(AVCodecContext *avctx, AVPacket *pkt);
+av_cold void ff_nvmpi_encode_flush(AVCodecContext *avctx);
 typedef struct {
 	const AVClass *class;
+	AVFrame *frame;
 	nvmpictx* ctx;
 	int num_capture_buffers;
 	int profile;
 	int level;
 	int rc;
 	int preset;
+
+	int pushedFrames;
+	int recvPackets;
+
+	bool bSentZeroFrame;
 }nvmpiEncodeContext;
 
-static av_cold int nvmpi_encode_init(AVCodecContext *avctx){
+static av_cold int ff_nvmpi_encode_init(AVCodecContext *avctx)
+{
 
 	nvmpiEncodeContext * nvmpi_context = avctx->priv_data;
 
@@ -123,20 +131,33 @@ static av_cold int nvmpi_encode_init(AVCodecContext *avctx){
 		nvmpi_context->ctx=nvmpi_create_encoder(NV_VIDEO_CodingHEVC,&param);
 	}
 
+	nvmpi_context->frame = av_frame_alloc();
 
 	return 0;
 }
 
-//DS support a null frame push
-static int nvmpi_encode_frame(AVCodecContext *avctx, AVPacket *pkt,const AVFrame *frame, int *got_packet){
+int ff_nvmpi_receive_packet(AVCodecContext *avctx, AVPacket *pkt)
+{
+	av_log(avctx, AV_LOG_INFO, "ff_nvmpi_receive_packet\n");
 
 	nvmpiEncodeContext * nvmpi_context = avctx->priv_data;
+    
+	AVFrame *frame = nvmpi_context->frame;
+
 	nvFrame _nvframe={0};
 	nvPacket packet={0};
-	int res;
+	int res = 0;
 
-	if(frame){
+	if (!frame->buf[0]) 
+	{
+		res = ff_encode_get_frame(avctx, frame);
+		if (res < 0 && res != AVERROR_EOF) return res;
+    }	
+	res = 0;
 
+	if(frame)
+	{		
+		nvmpi_context->pushedFrames++;
 		_nvframe.payload[0]=frame->data[0];
 		_nvframe.payload[1]=frame->data[1];
 		_nvframe.payload[2]=frame->data[2];
@@ -151,43 +172,90 @@ static int nvmpi_encode_frame(AVCodecContext *avctx, AVPacket *pkt,const AVFrame
 
 		_nvframe.timestamp=frame->pts;
 	}
+	
+	//bool bEOFFrame = (_nvframe.payload_size[0] == 0);
+	
+	//if(!bEOFFrame || !nvmpi_context->bSentZeroFrame)
+	{
+		av_log(avctx, AV_LOG_INFO, "nvmpi_encoder_put_frame: %d\n", _nvframe.payload_size[0]);
+		res = nvmpi_encoder_put_frame(nvmpi_context->ctx,&_nvframe);
+	}
 
-	res=nvmpi_encoder_put_frame(nvmpi_context->ctx,&_nvframe);
-	if(res<0)
+	//nvmpi_context->bSentZeroFrame |= bEOFFrame;
+
+	if(res<0) 
+	{
+		 av_log(avctx, AV_LOG_INFO, "nvmpi_encoder_put_frame FAIL: %d\n", res);
 		return res;
+	}
+	
+	av_frame_unref(frame);
 
-	if(nvmpi_encoder_get_packet(nvmpi_context->ctx,&packet)<0)
+	av_log(avctx, AV_LOG_INFO, "nvmpi_encoder_get_packet REQUEST\n");
+	if(nvmpi_encoder_get_packet(nvmpi_context->ctx, &packet)>=0)
+	{
+		av_log(avctx, AV_LOG_INFO, "nvmpi_encoder_get_packet SUCCESS %d\n", packet.payload_size);
+		nvmpi_context->recvPackets++;
+		//ff_alloc_packet(avctx,pkt,packet.payload_size);
+		res = ff_get_encode_buffer(avctx, pkt, packet.payload_size, 0);
+		if(res<0)
+		{
+			av_log(avctx, AV_LOG_INFO, "ff_get_encode_buffer failed %d\n", res);
+					return res;
+		}
+		
+		memcpy(pkt->data,packet.payload,packet.payload_size);
+		pkt->dts=pkt->pts=packet.pts;
+
+		if(packet.flags& AV_PKT_FLAG_KEY)
+		{
+			pkt->flags = AV_PKT_FLAG_KEY;
+		}
+
 		return 0;
+    }
+	else if (avctx->internal->draining) 
+	{
+		
+        return AVERROR_EOF;
+    } 
+	else 
+	{
+        return AVERROR(EAGAIN);
+    }
 
-	ff_alloc_packet(avctx,pkt,packet.payload_size);
 
-	memcpy(pkt->data,packet.payload,packet.payload_size);
-	pkt->dts=pkt->pts=packet.pts;
-
-	if(packet.flags& AV_PKT_FLAG_KEY)
-		pkt->flags = AV_PKT_FLAG_KEY;
-
-
-	*got_packet = 1;
-
-	return 0;
+    return 0;
 }
 
 
-static av_cold int nvmpi_encode_close(AVCodecContext *avctx){
-	
+static av_cold int ff_nvmpi_encode_close(AVCodecContext *avctx)
+{
 	nvmpiEncodeContext *nvmpi_context = avctx->priv_data;
+	av_log(avctx, AV_LOG_INFO, "nvmpi_encode_close is draining: %d", avctx->internal->draining);
+	av_log(avctx, AV_LOG_INFO, " - %d %d", nvmpi_context->pushedFrames, nvmpi_context->recvPackets);
 
 	//DS - make sure we are closing it down
 	if(!avctx->internal->draining)
 	{
+		av_log(avctx, AV_LOG_INFO, " - was not drawining at close not IDEAL!!!");
 		nvFrame _nvframe={0};
 		nvmpi_encoder_put_frame(nvmpi_context->ctx,&_nvframe);		
 	}
 
+	av_frame_free(&nvmpi_context->frame);
 	nvmpi_encoder_close(nvmpi_context->ctx);
 
 	return 0;
+}
+
+av_cold void ff_nvmpi_encode_flush(AVCodecContext *avctx)
+{
+	av_log(avctx, AV_LOG_INFO, "ff_nvmpi_encode_flush" );
+	nvmpiEncodeContext *nvmpi_context = avctx->priv_data;
+
+	nvFrame _nvframe={0};
+	nvmpi_encoder_put_frame(nvmpi_context->ctx,&_nvframe);		
 }
 
 static const FFCodecDefault defaults[] = {
@@ -248,7 +316,6 @@ static const AVOption options[] = {
 	{ NULL }
 };
 
-
 #define NVMPI_ENC_CLASS(NAME) \
 	static const AVClass nvmpi_ ## NAME ## _enc_class = { \
 		.class_name = #NAME "_nvmpi_encoder", \
@@ -256,7 +323,6 @@ static const AVOption options[] = {
 		.option     = options, \
 		.version    = LIBAVUTIL_VERSION_INT, \
 	};
-
 
 #define NVMPI_ENC(NAME, LONGNAME, CODEC) \
 	NVMPI_ENC_CLASS(NAME) \
@@ -267,11 +333,12 @@ static const AVOption options[] = {
 		.p.id             = CODEC , \
 		.priv_data_size = sizeof(nvmpiEncodeContext), \
 		.p.priv_class     = &nvmpi_ ## NAME ##_enc_class, \
-		.init           = nvmpi_encode_init, \		
-		FF_CODEC_ENCODE_CB(nvmpi_encode_frame), \
-		.close          = nvmpi_encode_close, \
+		.init           = ff_nvmpi_encode_init, \
+		FF_CODEC_RECEIVE_PACKET_CB(ff_nvmpi_receive_packet), \
+		.flush           = ff_nvmpi_encode_flush, \
+		.close          = ff_nvmpi_encode_close, \
 		.p.pix_fmts       = (const enum AVPixelFormat[]) { AV_PIX_FMT_YUV420P, AV_PIX_FMT_NONE },\
-		.p.capabilities   = AV_CODEC_CAP_HARDWARE | AV_CODEC_CAP_DELAY, \
+		.p.capabilities   = AV_CODEC_CAP_HARDWARE | AV_CODEC_CAP_DELAY | AV_CODEC_CAP_ENCODER_FLUSH, \
 		.defaults       = defaults,\
 		.p.wrapper_name   = "nvmpi", \
 	};

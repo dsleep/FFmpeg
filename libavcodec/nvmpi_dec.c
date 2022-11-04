@@ -90,14 +90,16 @@ static int nvmpi_decode(AVCodecContext *avctx,void *data,int *got_frame, AVPacke
 	uint8_t* ptrs[3];
 	int res,linesize[3];
 
-	if(avpkt->size){
+	if(avpkt->size)
+	{
 		packet.payload_size=avpkt->size;
 		packet.payload=avpkt->data;
 		packet.pts=avpkt->pts;
-
-		res=nvmpi_decoder_put_packet(nvmpi_context->ctx,&packet);
 	}
 
+	// allow empty push for flush?
+	res=nvmpi_decoder_put_packet(nvmpi_context->ctx,&packet);
+	
 	res=nvmpi_decoder_get_frame(nvmpi_context->ctx,&_nvframe,avctx->flags & AV_CODEC_FLAG_LOW_DELAY);
 
 	if(res<0)
