@@ -50,6 +50,9 @@ static av_cold int ff_nvmpi_encode_init(AVCodecContext *avctx)
 	param.capture_num=nvmpi_context->num_capture_buffers;
 	param.hw_preset_type=nvmpi_context->preset;
 	param.insert_spspps_idr=(avctx->flags & AV_CODEC_FLAG_GLOBAL_HEADER)?0:1;
+	
+	// DS - set the converter flag
+	param.enableImageConverter = (avctx->pix_fmt != AV_PIX_FMT_YUV420P);
 
 	if(nvmpi_context->rc==1){
 		param.mode_vbr=1;
@@ -337,7 +340,7 @@ static const AVOption options[] = {
 		FF_CODEC_RECEIVE_PACKET_CB(ff_nvmpi_receive_packet), \
 		.flush           = ff_nvmpi_encode_flush, \
 		.close          = ff_nvmpi_encode_close, \
-		.p.pix_fmts       = (const enum AVPixelFormat[]) { AV_PIX_FMT_YUV420P, AV_PIX_FMT_NONE },\
+		.p.pix_fmts       = (const enum AVPixelFormat[]) { AV_PIX_FMT_YUV420P, AV_PIX_FMT_RGBA, AV_PIX_FMT_NONE },\
 		.p.capabilities   = AV_CODEC_CAP_HARDWARE | AV_CODEC_CAP_DELAY | AV_CODEC_CAP_ENCODER_FLUSH, \
 		.defaults       = defaults,\
 		.p.wrapper_name   = "nvmpi", \
