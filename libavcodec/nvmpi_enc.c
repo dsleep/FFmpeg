@@ -52,7 +52,7 @@ static av_cold int ff_nvmpi_encode_init(AVCodecContext *avctx)
 	param.insert_spspps_idr=(avctx->flags & AV_CODEC_FLAG_GLOBAL_HEADER)?0:1;
 	
 	// DS - set the converter flag
-	param.enableImageConverter = (avctx->pix_fmt != AV_PIX_FMT_YUV420P);
+	param.isRawRGBA = (avctx->pix_fmt == AV_PIX_FMT_RGBA);
 
 	if(nvmpi_context->rc==1){
 		param.mode_vbr=1;
